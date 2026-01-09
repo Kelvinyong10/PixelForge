@@ -3,11 +3,11 @@ import tkinter as tk
 from image_handler import open_image, display_image, save_image
 import os
 from blur_effect import apply_blur, apply_blur_with_roi  # Import blur functions
-from brightness_adjust import adjust_brightness  # Import brightness function
-from contrast_adjust import adjust_contrast  # Import contrast function
+from brightness_adjust import adjust_brightness, adjust_brightness_with_roi # Import brightness functions
+from contrast_adjust import adjust_contrast, adjust_contrast_with_roi # Import contrast functions
 from sharpen import apply_sharpen, apply_sharpen_with_roi  # Import sharpen functions
-from grayscale import apply_grayscale  # Import grayscale function
 from noise_reduction import apply_median_blur, apply_median_blur_with_roi #Import noise reduction functions
+from grayscale import apply_grayscale, apply_grayscale_with_roi #Import greyscale functions
 
 import numpy as np
 
@@ -953,18 +953,27 @@ class PixelForgeEditor:
         if self.temp_image is None:
             return
         self.brightness_value = int(value)
-        preview = adjust_brightness(self.temp_image.copy(), self.brightness_value)
+        
+        if self.selected_roi:
+            preview = adjust_brightness_with_roi(self.temp_image.copy(), self.selected_roi, self.brightness_value)
+        else:
+            preview = adjust_brightness(self.temp_image.copy(), self.brightness_value)
+            
         display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
         self.status_label_features.config(text=f"Preview: Brightness ({self.brightness_value})", fg="blue")
 
     def confirm_brightness(self):
-        if self.temp_image is None:
-            return
-        self.brightness_value = self.brightness_slider.get()
-        self.current_image = adjust_brightness(self.temp_image.copy(), self.brightness_value)
+        if self.temp_image is None: return
+        val = self.brightness_slider.get()
+        if self.selected_roi:
+            self.current_image = adjust_brightness_with_roi(self.temp_image.copy(), self.selected_roi, val)
+        else:
+            self.current_image = adjust_brightness(self.temp_image.copy(), val)
+        
         display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
-        self.status_label_features.config(text=f"Brightness applied: {self.brightness_value}", fg="green")
+        self.status_label_features.config(text=f"Brightness applied: {val}", fg="green")
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
 
     def cancel_brightness(self):
@@ -990,17 +999,27 @@ class PixelForgeEditor:
         if self.temp_image is None:
             return
         self.contrast_value = int(value)
-        preview = adjust_contrast(self.temp_image.copy(), self.contrast_value)
+        
+        if self.selected_roi:
+            preview = adjust_contrast_with_roi(self.temp_image.copy(), self.selected_roi, self.contrast_value)
+        else:
+            preview = adjust_contrast(self.temp_image.copy(), self.contrast_value)
+            
         display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text=f"Preview: Contrast ({self.contrast_value})", fg="blue")
 
     def confirm_contrast(self):
-        if self.temp_image is None:
-            return
-        self.contrast_value = self.contrast_slider.get()
-        self.current_image = adjust_contrast(self.temp_image.copy(), self.contrast_value)
+        if self.temp_image is None: return
+        val = self.contrast_slider.get()
+        if self.selected_roi:
+            self.current_image = adjust_contrast_with_roi(self.temp_image.copy(), self.selected_roi, val)
+        else:
+            self.current_image = adjust_contrast(self.temp_image.copy(), val)
+            
         display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.status_label_features.config(text="Contrast applied", fg="green")
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
 
     def cancel_contrast(self):
@@ -1033,16 +1052,17 @@ class PixelForgeEditor:
         display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
 
     def confirm_sharpen(self):
+        if self.temp_image is None: return
         strength = self.sharpen_slider.get()
-        if self.temp_image is None:
-            return
         if self.selected_roi:
             self.current_image = apply_sharpen_with_roi(self.temp_image.copy(), self.selected_roi, strength)
         else:
             self.current_image = apply_sharpen(self.temp_image.copy(), strength)
+            
         display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.status_label_features.config(text=f"Sharpen applied ({strength})", fg="green")
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
         
     def cancel_sharpen(self):
@@ -1087,6 +1107,7 @@ class PixelForgeEditor:
         display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.status_label_features.config(text="Noise reduction applied", fg="green")
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
 
     def cancel_noise_reduction(self):
@@ -1105,23 +1126,27 @@ class PixelForgeEditor:
         
         self.temp_image = self.current_image.copy()
         
-        # Apply immediate preview since there are no parameters
-        preview = apply_grayscale(self.temp_image.copy())
+        if self.selected_roi:
+            preview = apply_grayscale_with_roi(self.temp_image.copy(), self.selected_roi)
+        else:
+            preview = apply_grayscale(self.temp_image.copy())
+            
         display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
         
         self.show_feature_controls("grayscale")
         self.status_label_features.config(text="Previewing Grayscale", fg="blue")
 
     def confirm_grayscale(self):
-        if self.temp_image is None:
-            return
-        
-        # Apply the change permanently
-        self.current_image = apply_grayscale(self.temp_image.copy())
+        if self.temp_image is None: return
+        if self.selected_roi:
+            self.current_image = apply_grayscale_with_roi(self.temp_image.copy(), self.selected_roi)
+        else:
+            self.current_image = apply_grayscale(self.temp_image.copy())
+            
         display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.status_label_features.config(text="Grayscale applied", fg="green")
-        
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
 
     def cancel_grayscale(self):
