@@ -928,6 +928,7 @@ class PixelForgeEditor:
         self.status_label_features.config(text=f"Blur applied ({self.blur_kernel})", fg="green")
         self.hide_all_feature_controls()
         self.temp_image = None
+        self.reset_roi_selection() 
 
     def cancel_blur(self):
         if self.temp_image is not None:
@@ -980,6 +981,7 @@ class PixelForgeEditor:
         if self.temp_image is not None:
             display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
         self.status_label_features.config(text="Brightness cancelled", fg="red")
 
@@ -1026,6 +1028,7 @@ class PixelForgeEditor:
         if self.temp_image is not None:
             display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
         self.status_label_features.config(text="Contrast cancelled", fg="red")
 
@@ -1069,6 +1072,7 @@ class PixelForgeEditor:
         if self.temp_image is not None:
             display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.hide_all_feature_controls()
+        self.reset_roi_selection()
         self.temp_image = None
         self.status_label_features.config(text="Sharpen cancelled", fg="red")
 
