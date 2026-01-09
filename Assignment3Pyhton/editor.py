@@ -27,7 +27,8 @@ class PixelForgeEditor:
         self.roi_start = None 
         self.roi_rect = None 
         self.selection_mode = False 
-        self.selected_roi = None  
+        self.selected_roi = None
+        self.copied_fragment = None
 
         # Blur variables
         self.blur_kernel = 5  # Default kernel size
@@ -56,18 +57,30 @@ class PixelForgeEditor:
     # -----------------------------
     # Welcome Interface
     # -----------------------------
-    def create_welcome_interface(self):
-        """Create the welcome screen."""
-        self.welcome_frame.pack(fill="both", expand=True)
 
+    def create_welcome_interface(self):
+        """Create a modernized welcome screen."""
+        self.welcome_frame.pack(fill="both", expand=True)
+        self.welcome_frame.configure(bg="#1F1F1F")
+
+        # Main Title with a 'Forge' accent
         title_label = tk.Label(
             self.welcome_frame,
-            text="Welcome to PixelForge",
-            font=("Arial", 24, "bold"),
+            text="PIXELFORGE",
+            font=("Impact", 48),
             bg="#1F1F1F",
-            fg="white"
+            fg="#FFA500" 
         )
-        title_label.pack(pady=(100, 20))
+        title_label.pack(pady=(120, 5))
+
+        subtitle_label = tk.Label(
+            self.welcome_frame,
+            text="Forging Perfection, One Pixel at a Time",
+            font=("Arial", 12, "italic"),
+            bg="#1F1F1F",
+            fg="#aaaaaa"
+        )
+        subtitle_label.pack(pady=(0, 40))
 
         button_frame = tk.Frame(self.welcome_frame, bg="#1F1F1F")
         button_frame.pack()
@@ -96,6 +109,15 @@ class PixelForgeEditor:
         )
         exit_btn.pack(side="left", padx=10)
 
+        version_label = tk.Label(
+            self.welcome_frame,
+            text="v1.0.0 | © 2026 PixelForge",
+            bg="#1F1F1F",
+            fg="#444444",
+            font=("Arial", 8)
+        )
+        version_label.pack(side="bottom", pady=20)
+
     # -----------------------------
     # Select Image Interface
     # -----------------------------
@@ -117,8 +139,8 @@ class PixelForgeEditor:
             left_frame,
             text="Open Image",
             command=self.handle_open_image,
-            bg="#404040",
-            fg="white",
+            bg="#FFA500",
+            fg="black",
             font=("Arial", 12),
             width=15,
             height=2
@@ -763,21 +785,19 @@ class PixelForgeEditor:
     # ROI selection
     # --------------------------------------
     def start_optional_roi_selection(self):
-        """Enter ROI selection mode for any feature."""
         if self.current_image is None:
             self.status_label_features.config(text="No image loaded", fg="red")
             return
 
         self.selection_mode = True
-        self.status_label_features.config(text="Select ROI (click and drag)", fg="orange")
-
-        # Hide all feature controls while selecting ROI
+        self.status_label_features.config(text="Drag Left-Click to Copy | Right-Click to Paste", fg="orange")
         self.hide_all_feature_controls()
 
-        # Bind mouse events for ROI
         self.canvas_features.bind("<ButtonPress-1>", self.start_roi_selection)
         self.canvas_features.bind("<B1-Motion>", self.update_roi_selection)
         self.canvas_features.bind("<ButtonRelease-1>", self.finish_roi_selection)
+        
+        self.canvas_features.bind("<Button-3>", self.handle_right_click_paste) # Windows/Linux
 
     def start_roi_selection(self, event):
         if not self.selection_mode:
@@ -798,17 +818,13 @@ class PixelForgeEditor:
 
         x1, y1, x2, y2 = self.canvas_features.coords(self.roi_rect)
         self.selected_roi = self.canvas_to_image_coords(x1, y1, x2, y2, self.canvas_features)
-        self.temp_image = self.current_image.copy()
+        
+        if self.selected_roi:
+            ix1, iy1, ix2, iy2 = self.selected_roi
+            self.copied_fragment = self.current_image[iy1:iy2, ix1:ix2].copy()
+            self.status_label_features.config(text="Fragment Copied! Right-click to paste it.", fg="green")
 
-        # After ROI selection, show blur as default
-        self.show_feature_controls("blur")
-        self.status_label_features.config(text="Adjust blur intensity (live preview)", fg="orange")
-
-        self.selection_mode = False
         self.roi_start = None
-        self.canvas_features.unbind("<ButtonPress-1>")
-        self.canvas_features.unbind("<B1-Motion>")
-        self.canvas_features.unbind("<ButtonRelease-1>")
 
     def reset_roi_selection(self):
         self.selection_mode = False
@@ -821,6 +837,49 @@ class PixelForgeEditor:
         self.canvas_features.unbind("<ButtonPress-1>")
         self.canvas_features.unbind("<B1-Motion>")
         self.canvas_features.unbind("<ButtonRelease-1>")
+
+    # --------------------------------------
+    # Paste Feature
+    # --------------------------------------
+
+    def handle_right_click_paste(self, event):
+        """Logic to paste the copied fragment at the mouse cursor position."""
+        if self.copied_fragment is None:
+            self.status_label_features.config(text="Nothing copied yet! Drag left-click first.", fg="red")
+            return
+
+        img_coords = self.canvas_to_image_coords(event.x, event.y, event.x, event.y, self.canvas_features)
+        if not img_coords: return
+        
+        start_x, start_y = img_coords[0], img_coords[1]
+        
+        frag_h, frag_w = self.copied_fragment.shape[:2]
+        img_h, img_w = self.current_image.shape[:2]
+
+        end_y = min(start_y + frag_h, img_h)
+        end_x = min(start_x + frag_w, img_w)
+        
+        visible_h = end_y - start_y
+        visible_w = end_x - start_x
+
+        if visible_h > 0 and visible_w > 0:
+            self.temp_image = self.current_image.copy()
+            
+            self.current_image[start_y:end_y, start_x:end_x] = self.copied_fragment[0:visible_h, 0:visible_w]
+            
+            display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+            self.status_label_features.config(text="Fragment Pasted!", fg="green")
+
+    def stop_roi_mode(self):
+        """Call this to exit selection mode and clean up binds."""
+        self.selection_mode = False
+        self.canvas_features.unbind("<ButtonPress-1>")
+        self.canvas_features.unbind("<B1-Motion>")
+        self.canvas_features.unbind("<ButtonRelease-1>")
+        self.canvas_features.unbind("<Button-3>")
+        self.canvas_features.unbind("<Button-2>")
+        if self.roi_rect:
+            self.canvas_features.delete(self.roi_rect)
 
     # --------------------------------------
     # Blur Feature
