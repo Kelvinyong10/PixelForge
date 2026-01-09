@@ -1,0 +1,1004 @@
+import tkinter as tk
+
+from image_handler import open_image, display_image, save_image
+import os
+from blur_effect import apply_blur, apply_blur_with_roi  # Import blur functions
+from brightness_adjust import adjust_brightness  # Import brightness function
+from contrast_adjust import adjust_contrast  # Import contrast function
+from sharpen import apply_sharpen, apply_sharpen_with_roi  # Import sharpen functions
+from grayscale import apply_grayscale  # Import grayscale function
+
+import numpy as np
+
+class PixelForgeEditor:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("PixelForge - Image Editor")
+        self.root.geometry("800x600")
+        self.root.configure(bg="#808080")  # Gray background
+
+        # Store the original image (managed in image_handler)
+        self.original_bgr = None
+        self.current_image = None
+        self.temp_image = None  # Temporary image for preview
+
+        # ROI selection variables
+        self.roi_start = None 
+        self.roi_rect = None 
+        self.selection_mode = False 
+        self.selected_roi = None  
+
+        # Blur variables
+        self.blur_kernel = 5  # Default kernel size
+
+        # Brightness variables
+        self.brightness_value = 0  # Default brightness adjustment
+
+        # Contrast variables
+        self.contrast_value = 0  # Default contrast adjustment
+
+        # Create frames for interfaces
+        self.welcome_frame = tk.Frame(root, bg="#808080")
+        self.select_frame = tk.Frame(root, bg="#808080")
+        self.features_frame = tk.Frame(root, bg="#808080")
+
+        # Initialize interfaces
+        self.create_welcome_interface()
+        self.create_select_image_interface()
+        self.create_features_interface()
+
+        self.show_welcome()
+
+        # Photo reference for canvas (used in display_image)
+        self.photo = None
+
+    # -----------------------------
+    # Welcome Interface
+    # -----------------------------
+    def create_welcome_interface(self):
+        """Create the welcome screen."""
+        self.welcome_frame.pack(fill="both", expand=True)
+
+        title_label = tk.Label(
+            self.welcome_frame,
+            text="Welcome to PixelForge",
+            font=("Arial", 24, "bold"),
+            bg="#808080",
+            fg="white"
+        )
+        title_label.pack(pady=(100, 20))
+
+        button_frame = tk.Frame(self.welcome_frame, bg="#808080")
+        button_frame.pack()
+
+        start_btn = tk.Button(
+            button_frame,
+            text="Start Editing",
+            command=self.show_select_image,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 14),
+            width=15,
+            height=2
+        )
+        start_btn.pack(side="left", padx=10)
+
+        exit_btn = tk.Button(
+            button_frame,
+            text="Exit Program",
+            command=self.root.quit,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 14),
+            width=15,
+            height=2
+        )
+        exit_btn.pack(side="left", padx=10)
+
+    # -----------------------------
+    # Select Image Interface
+    # -----------------------------
+    def create_select_image_interface(self):
+        """Create the select image screen."""
+        left_frame = tk.Frame(self.select_frame, bg="#808080")
+        left_frame.pack(side="left", fill="y", padx=20, pady=20)
+
+        title_label = tk.Label(
+            left_frame,
+            text="Select Image",
+            font=("Arial", 18, "bold"),
+            bg="#808080",
+            fg="white"
+        )
+        title_label.pack(anchor="w", pady=(0, 10))
+
+        open_btn = tk.Button(
+            left_frame,
+            text="Open Image",
+            command=self.handle_open_image,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        open_btn.pack(anchor="w", pady=(0, 10))
+
+        next_btn = tk.Button(
+            left_frame,
+            text="Next",
+            command=self.show_features,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        next_btn.pack(anchor="w", pady=(0, 20))
+
+        back_btn = tk.Button(
+            left_frame,
+            text="Back",
+            command=self.show_welcome,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        back_btn.pack(side="bottom", anchor="sw", pady=(20, 0))
+
+        right_frame = tk.Frame(self.select_frame, bg="#808080")
+        right_frame.pack(side="right", fill="both", expand=True, padx=20, pady=20)
+
+        self.canvas_select = tk.Canvas(
+            right_frame,
+            width=600,
+            height=400,
+            bg="#959595", 
+            highlightthickness=1,
+            highlightbackground="#404040"
+        )
+        self.canvas_select.pack(pady=(0, 10))
+
+        self.status_label_select = tk.Label(
+            right_frame,
+            text="No Image Loaded",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 12)
+        )
+        self.status_label_select.pack()
+
+    # -----------------------------
+    # Features Interface
+    # -----------------------------
+    def create_features_interface(self):
+        """Create the features interface."""
+        left_frame = tk.Frame(self.features_frame, bg="#808080")
+        left_frame.pack(side="left", fill="y", padx=20, pady=20)
+
+        title_label = tk.Label(
+            left_frame,
+            text="Features",
+            font=("Arial", 18, "bold"),
+            bg="#808080",
+            fg="white"
+        )
+        title_label.pack(anchor="w", pady=(0, 10))
+
+        # ROI selection button
+        roi_btn = tk.Button(
+            left_frame,
+            text="Select ROI (Optional)",
+            command=self.start_optional_roi_selection,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        )
+        roi_btn.pack(anchor="w", pady=(0, 10))
+
+        # Feature buttons
+        tk.Button(
+            left_frame,
+            text="Apply Blur",
+            command=self.apply_blur_feature,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        ).pack(anchor="w", pady=(0, 10))
+
+        tk.Button(
+            left_frame,
+            text="Adjust Brightness",
+            command=self.apply_brightness_feature,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        ).pack(anchor="w", pady=(0, 10))
+
+        tk.Button(
+            left_frame,
+            text="Adjust Contrast",
+            command=self.apply_contrast_feature,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        ).pack(anchor="w", pady=(0, 10))
+
+        tk.Button(
+            left_frame,
+            text="Sharpen",
+            command=self.show_sharpen_controls,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        ).pack(anchor="w", pady=(0, 10))
+
+        tk.Button(
+            left_frame,
+            text="Apply Grayscale",
+            command=self.apply_grayscale_feature,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        ).pack(anchor="w", pady=(0, 10))
+
+        # Bottom Button 
+        bottom_btn_frame = tk.Frame(left_frame, bg="#808080")
+        bottom_btn_frame.pack(side="bottom", anchor="w", pady=(20, 0), fill="x")
+
+        # 1. Back Button
+        back_btn = tk.Button(
+            bottom_btn_frame,
+            text="Back",
+            command=self.show_select_image,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        back_btn.pack(side="left", padx=(0, 10))
+
+        # 2. Reset Button 
+        reset_btn = tk.Button(
+            bottom_btn_frame,
+            text="Reset",
+            command=self.reset_to_original, 
+            bg="#dc3545", 
+            fg="white",
+            font=("Arial", 12, "bold"),
+            width=15,
+            height=2
+        )
+        reset_btn.pack(side="left", padx=(0, 10))
+
+        # 3. Save Button
+        save_btn = tk.Button(
+            bottom_btn_frame,
+            text="Save",
+            command=self.handle_save_image,
+            bg="#28a745", # Green color
+            fg="white",
+            font=("Arial", 12, "bold"),
+            width=15,
+            height=2
+        )
+        save_btn.pack(side="left")
+
+        # Right frame for canvas + sliders
+        right_frame = tk.Frame(self.features_frame, bg="#808080")
+        right_frame.pack(side="right", fill="both", expand=True, padx=20, pady=20)
+
+        self.canvas_features = tk.Canvas(
+            right_frame,
+            width=600,
+            height=400,
+            bg="#959595",
+            highlightthickness=1,
+            highlightbackground="#404040"
+        )
+        self.canvas_features.pack(pady=(0, 10))
+
+        # -----------------------------
+        # Control Frames (Blur, Brightness, Contrast, Sharpen)
+        # -----------------------------
+        
+        # Blur Controls 
+        self.blur_controls_frame = tk.Frame(right_frame, bg="#808080")
+        
+        blur_top_row = tk.Frame(self.blur_controls_frame, bg="#808080")
+        blur_top_row.pack(side="top", pady=(0, 15))
+
+        self.blur_slider_label = tk.Label(
+            blur_top_row,
+            text="Blur Intensity:",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 15)
+        )
+        self.blur_slider_label.pack(side="left", padx=(0, 15))
+
+        self.blur_slider = tk.Scale(
+            blur_top_row,
+            from_=1,
+            to=15,
+            resolution=2,
+            orient="horizontal",
+            length=150,
+            bg="#808080",
+            fg="white",
+            highlightbackground="#404040",
+            command=self.update_blur_preview
+        )
+        self.blur_slider.set(5)
+        self.blur_slider.pack(side="left", padx=(0, 10))
+
+        blur_bottom_row = tk.Frame(self.blur_controls_frame, bg="#808080")
+        blur_bottom_row.pack(side="top")
+
+        self.apply_blur_btn = tk.Button(
+            blur_bottom_row,
+            text="Apply Blur",
+            command=self.confirm_blur,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.apply_blur_btn.pack(side="left", padx=(0, 5))
+
+        self.cancel_blur_btn = tk.Button(
+            blur_bottom_row,
+            text="Cancel",
+            command=self.cancel_blur,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.cancel_blur_btn.pack(side="left")
+
+        # Brightness Controls
+        self.brightness_controls_frame = tk.Frame(right_frame, bg="#808080")
+        
+        bright_top_row = tk.Frame(self.brightness_controls_frame, bg="#808080")
+        bright_top_row.pack(side="top", pady=(0, 15))
+
+        self.brightness_slider_label = tk.Label(
+            bright_top_row,
+            text="Brightness:",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 15)
+        )
+        self.brightness_slider_label.pack(side="left", padx=(0, 15))
+
+        self.brightness_slider = tk.Scale(
+            bright_top_row,
+            from_=-100,
+            to=100,
+            resolution=10,
+            orient="horizontal",
+            length=150,
+            bg="#808080",
+            fg="white",
+            highlightbackground="#404040",
+            command=self.update_brightness_preview
+        )
+        self.brightness_slider.set(0)
+        self.brightness_slider.pack(side="left", padx=(0, 10))
+
+        bright_bottom_row = tk.Frame(self.brightness_controls_frame, bg="#808080")
+        bright_bottom_row.pack(side="top")
+
+        self.apply_brightness_btn = tk.Button(
+            bright_bottom_row,
+            text="Apply Brightness",
+            command=self.confirm_brightness,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.apply_brightness_btn.pack(side="left", padx=(0, 5))
+
+        self.cancel_brightness_btn = tk.Button(
+            bright_bottom_row,
+            text="Cancel",
+            command=self.cancel_brightness,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.cancel_brightness_btn.pack(side="left")
+
+        # Contrast Controls 
+        self.contrast_controls_frame = tk.Frame(right_frame, bg="#808080")
+        
+        contrast_top_row = tk.Frame(self.contrast_controls_frame, bg="#808080")
+        contrast_top_row.pack(side="top", pady=(0, 15))
+
+        self.contrast_slider_label = tk.Label(
+            contrast_top_row,
+            text="Contrast:",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 15)
+        )
+        self.contrast_slider_label.pack(side="left", padx=(0, 15))
+
+        self.contrast_slider = tk.Scale(
+            contrast_top_row,
+            from_=-100,
+            to=100,
+            resolution=10,
+            orient="horizontal",
+            length=150,
+            bg="#808080",
+            fg="white",
+            highlightbackground="#404040",
+            command=self.update_contrast_preview
+        )
+        self.contrast_slider.set(0)
+        self.contrast_slider.pack(side="left", padx=(0, 10))
+
+        contrast_bottom_row = tk.Frame(self.contrast_controls_frame, bg="#808080")
+        contrast_bottom_row.pack(side="top")
+
+        self.apply_contrast_btn = tk.Button(
+            contrast_bottom_row,
+            text="Apply Contrast",
+            command=self.confirm_contrast,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.apply_contrast_btn.pack(side="left", padx=(0, 5))
+
+        self.cancel_contrast_btn = tk.Button(
+            contrast_bottom_row,
+            text="Cancel",
+            command=self.cancel_contrast,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.cancel_contrast_btn.pack(side="left")
+
+        # Sharpen controls 
+        self.sharpen_controls_frame = tk.Frame(right_frame, bg="#808080")
+
+        sharpen_top_row = tk.Frame(self.sharpen_controls_frame, bg="#808080")
+        sharpen_top_row.pack(side="top", pady=(0, 15))
+
+        self.sharpen_slider_label = tk.Label(
+            sharpen_top_row,
+            text="Sharpen Strength:",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 15)
+        )
+        self.sharpen_slider_label.pack(side="left", padx=(0, 15))
+
+        self.sharpen_slider = tk.Scale(
+            sharpen_top_row,
+            from_=0,
+            to=5,
+            orient="horizontal",
+            length=150,
+            bg="#808080",
+            fg="white",
+            highlightbackground="#404040",
+            command=self.update_sharpen_preview
+        )
+        self.sharpen_slider.set(0)
+        self.sharpen_slider.pack(side="left", padx=(0, 10))
+
+        sharpen_bottom_row = tk.Frame(self.sharpen_controls_frame, bg="#808080")
+        sharpen_bottom_row.pack(side="top")
+
+        self.apply_sharpen_btn = tk.Button(
+            sharpen_bottom_row,
+            text="Apply ",
+            command=self.confirm_sharpen,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.apply_sharpen_btn.pack(side="left", padx=(0, 5))
+
+        self.cancel_sharpen_btn = tk.Button(
+            sharpen_bottom_row,
+            text="Cancel",
+            command=self.cancel_sharpen,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.cancel_sharpen_btn.pack(side="left")
+
+        # Grayscale Controls 
+        self.grayscale_controls_frame = tk.Frame(right_frame, bg="#808080")
+
+        gray_top_row = tk.Frame(self.grayscale_controls_frame, bg="#808080")
+        gray_top_row.pack(side="top", pady=(0, 15))
+
+        tk.Label(
+            gray_top_row,
+            text="Convert to Grayscale",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 15)
+        ).pack(side="left", padx=(0, 15))
+
+        gray_bottom_row = tk.Frame(self.grayscale_controls_frame, bg="#808080")
+        gray_bottom_row.pack(side="top")
+
+        self.apply_gray_btn = tk.Button(
+            gray_bottom_row,
+            text="Apply",
+            command=self.confirm_grayscale,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.apply_gray_btn.pack(side="left", padx=(0, 5))
+
+        self.cancel_gray_btn = tk.Button(
+            gray_bottom_row,
+            text="Cancel",
+            command=self.cancel_grayscale,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.cancel_gray_btn.pack(side="left")
+
+        # Status label
+        self.status_label_features = tk.Label(
+            right_frame,
+            text="No Image Loaded",
+            bg="#808080",
+            fg="white",
+            font=("Arial", 12)
+        )
+        self.status_label_features.pack(pady=(10, 0))
+
+    # --------------------------------------
+    # Unified show/hide feature controls
+    # --------------------------------------
+    def show_feature_controls(self, feature):
+        """Show the specified feature controls and hide all others."""
+        self.hide_all_feature_controls()
+        if feature == "blur":
+            self.blur_controls_frame.pack(pady=(0, 10))
+        elif feature == "brightness":
+            self.brightness_controls_frame.pack(pady=(0, 10))
+        elif feature == "contrast":
+            self.contrast_controls_frame.pack(pady=(0, 10))
+        elif feature == "sharpen":
+            self.sharpen_controls_frame.pack(pady=(0, 10))
+        elif feature == "grayscale": 
+            self.grayscale_controls_frame.pack(pady=(0, 10))
+
+    def hide_all_feature_controls(self):
+        """Hide all feature control frames."""
+        self.blur_controls_frame.pack_forget()
+        self.brightness_controls_frame.pack_forget()
+        self.contrast_controls_frame.pack_forget()
+        self.sharpen_controls_frame.pack_forget()
+        self.grayscale_controls_frame.pack_forget()
+
+    # --------------------------------------
+    # Screen navigation
+    # --------------------------------------
+    def show_welcome(self):
+        self.select_frame.pack_forget()
+        self.features_frame.pack_forget()
+        self.welcome_frame.pack(fill="both", expand=True)
+        self.original_bgr = None
+        self.current_image = None
+        self.temp_image = None
+        self.canvas_select.delete("all")
+        self.canvas_features.delete("all")
+        self.status_label_select.config(text="No Image Loaded")
+        self.status_label_features.config(text="No Image Loaded")
+        self.reset_roi_selection()
+        self.hide_all_feature_controls()
+
+    def show_select_image(self):
+        self.welcome_frame.pack_forget()
+        self.features_frame.pack_forget()
+        self.select_frame.pack(fill="both", expand=True)
+        if self.current_image is not None:
+            display_image(self, self.current_image, canvas=self.canvas_select, status_label=self.status_label_select)
+        self.reset_roi_selection()
+        self.hide_all_feature_controls()
+
+    def show_features(self):
+        self.welcome_frame.pack_forget()
+        self.select_frame.pack_forget()
+        self.features_frame.pack(fill="both", expand=True)
+        if self.current_image is not None:
+            display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.reset_roi_selection()
+        self.hide_all_feature_controls()
+
+    # --------------------------------------
+    # Image handling
+    # --------------------------------------
+    def handle_open_image(self):
+        result = open_image(self, self.status_label_select)
+        if result:
+            self.original_bgr, self.current_image = result
+            self.original_rgb_copy = self.current_image.copy()
+            display_image(self, self.current_image, canvas=self.canvas_select, status_label=self.status_label_select)
+
+    def canvas_to_image_coords(self, x1, y1, x2, y2, canvas):
+        if self.current_image is None:
+            return None
+        canvas_width, canvas_height = 600, 400
+        img_height, img_width = self.current_image.shape[:2]
+        scale = min(canvas_width / img_width, canvas_height / img_height)
+        scaled_width = int(img_width * scale)
+        scaled_height = int(img_height * scale)
+        x_offset = (canvas_width - scaled_width) // 2
+        y_offset = (canvas_height - scaled_height) // 2
+        scaled_x1 = max(0, x1 - x_offset)
+        scaled_y1 = max(0, y1 - y_offset)
+        scaled_x2 = min(scaled_width, x2 - x_offset)
+        scaled_y2 = min(scaled_height, y2 - y_offset)
+        img_x1 = int(scaled_x1 / scale)
+        img_y1 = int(scaled_y1 / scale)
+        img_x2 = int(scaled_x2 / scale)
+        img_y2 = int(scaled_y2 / scale)
+        return (img_x1, img_y1, img_x2, img_y2)
+
+    # --------------------------------------
+    # ROI selection
+    # --------------------------------------
+    def start_optional_roi_selection(self):
+        """Enter ROI selection mode for any feature."""
+        if self.current_image is None:
+            self.status_label_features.config(text="No image loaded", fg="red")
+            return
+
+        self.selection_mode = True
+        self.status_label_features.config(text="Select ROI (click and drag)", fg="orange")
+
+        # Hide all feature controls while selecting ROI
+        self.hide_all_feature_controls()
+
+        # Bind mouse events for ROI
+        self.canvas_features.bind("<ButtonPress-1>", self.start_roi_selection)
+        self.canvas_features.bind("<B1-Motion>", self.update_roi_selection)
+        self.canvas_features.bind("<ButtonRelease-1>", self.finish_roi_selection)
+
+    def start_roi_selection(self, event):
+        if not self.selection_mode:
+            return
+        self.roi_start = (event.x, event.y)
+        if self.roi_rect:
+            self.canvas_features.delete(self.roi_rect)
+        self.roi_rect = self.canvas_features.create_rectangle(event.x, event.y, event.x, event.y, outline="red", width=2)
+
+    def update_roi_selection(self, event):
+        if not self.selection_mode or not self.roi_start:
+            return
+        self.canvas_features.coords(self.roi_rect, self.roi_start[0], self.roi_start[1], event.x, event.y)
+
+    def finish_roi_selection(self, event):
+        if not self.selection_mode or not self.roi_start:
+            return
+
+        x1, y1, x2, y2 = self.canvas_features.coords(self.roi_rect)
+        self.selected_roi = self.canvas_to_image_coords(x1, y1, x2, y2, self.canvas_features)
+        self.temp_image = self.current_image.copy()
+
+        # After ROI selection, show blur as default
+        self.show_feature_controls("blur")
+        self.status_label_features.config(text="Adjust blur intensity (live preview)", fg="orange")
+
+        self.selection_mode = False
+        self.roi_start = None
+        self.canvas_features.unbind("<ButtonPress-1>")
+        self.canvas_features.unbind("<B1-Motion>")
+        self.canvas_features.unbind("<ButtonRelease-1>")
+
+    def reset_roi_selection(self):
+        self.selection_mode = False
+        self.roi_start = None
+        self.selected_roi = None
+        self.temp_image = None
+        if self.roi_rect:
+            self.canvas_features.delete(self.roi_rect)
+            self.roi_rect = None
+        self.canvas_features.unbind("<ButtonPress-1>")
+        self.canvas_features.unbind("<B1-Motion>")
+        self.canvas_features.unbind("<ButtonRelease-1>")
+
+    # --------------------------------------
+    # Blur Feature
+    # --------------------------------------
+    def apply_blur_feature(self):
+        if self.current_image is None:
+            self.status_label_features.config(text="No image to blur", fg="red")
+            return
+        self.temp_image = self.current_image.copy()
+        self.blur_slider.set(self.blur_kernel)
+        self.show_feature_controls("blur")
+        self.status_label_features.config(text="Adjust blur intensity (live preview). ROI will be used if selected.", fg="orange")
+
+    def update_blur_preview(self, value):
+        if self.temp_image is None:
+            return
+        self.blur_kernel = int(value)
+        if self.blur_kernel % 2 == 0:
+            self.blur_kernel += 1
+
+        if self.selected_roi:
+            preview = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel_size=self.blur_kernel)
+        else:
+            preview = apply_blur(self.temp_image.copy(), kernel_size=self.blur_kernel)
+
+        display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text=f"Preview: Blur ({self.blur_kernel})", fg="blue")
+
+    def confirm_blur(self):
+        if self.temp_image is None:
+            return
+        if self.selected_roi:
+            self.current_image = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel_size=self.blur_kernel)
+        else:
+            self.current_image = apply_blur(self.temp_image.copy(), kernel_size=self.blur_kernel)
+        display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text=f"Blur applied ({self.blur_kernel})", fg="green")
+        self.hide_all_feature_controls()
+        self.temp_image = None
+
+    def cancel_blur(self):
+        if self.temp_image is not None:
+            self.current_image = self.temp_image.copy()
+            display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+            self.status_label_features.config(text="Blur cancelled", fg="red")
+        self.hide_all_feature_controls()
+        self.reset_roi_selection()
+
+    # --------------------------------------
+    # Brightness Feature
+    # --------------------------------------
+    def apply_brightness_feature(self):
+        if self.current_image is None:
+            self.status_label_features.config(text="No image loaded", fg="red")
+            return
+        self.temp_image = self.current_image.copy()
+        self.brightness_slider.set(self.brightness_value)
+        self.show_feature_controls("brightness")
+        self.status_label_features.config(text="Adjust brightness using the slider", fg="orange")
+
+    def update_brightness_preview(self, value):
+        if self.temp_image is None:
+            return
+        self.brightness_value = int(value)
+        preview = adjust_brightness(self.temp_image.copy(), self.brightness_value)
+        display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text=f"Preview: Brightness ({self.brightness_value})", fg="blue")
+
+    def confirm_brightness(self):
+        if self.temp_image is None:
+            return
+        self.brightness_value = self.brightness_slider.get()
+        self.current_image = adjust_brightness(self.temp_image.copy(), self.brightness_value)
+        display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text=f"Brightness applied: {self.brightness_value}", fg="green")
+        self.hide_all_feature_controls()
+        self.temp_image = None
+
+    def cancel_brightness(self):
+        if self.temp_image is not None:
+            display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.hide_all_feature_controls()
+        self.temp_image = None
+        self.status_label_features.config(text="Brightness cancelled", fg="red")
+
+    # --------------------------------------
+    # Contrast Feature
+    # --------------------------------------
+    def apply_contrast_feature(self):
+        if self.current_image is None:
+            self.status_label_features.config(text="No image loaded", fg="red")
+            return
+        self.temp_image = self.current_image.copy()
+        self.contrast_slider.set(self.contrast_value)
+        self.show_feature_controls("contrast")
+        self.status_label_features.config(text="Adjust contrast using the slider", fg="orange")
+
+    def update_contrast_preview(self, value):
+        if self.temp_image is None:
+            return
+        self.contrast_value = int(value)
+        preview = adjust_contrast(self.temp_image.copy(), self.contrast_value)
+        display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+
+    def confirm_contrast(self):
+        if self.temp_image is None:
+            return
+        self.contrast_value = self.contrast_slider.get()
+        self.current_image = adjust_contrast(self.temp_image.copy(), self.contrast_value)
+        display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text="Contrast applied", fg="green")
+        self.hide_all_feature_controls()
+        self.temp_image = None
+
+    def cancel_contrast(self):
+        if self.temp_image is not None:
+            display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.hide_all_feature_controls()
+        self.temp_image = None
+        self.status_label_features.config(text="Contrast cancelled", fg="red")
+
+    # --------------------------------------
+    # Sharpen Feature
+    # --------------------------------------
+    def show_sharpen_controls(self):
+        if self.current_image is None:
+            self.status_label_features.config(text="No image loaded", fg="red")
+            return
+        self.temp_image = self.current_image.copy()
+        self.sharpen_slider.set(0)
+        self.show_feature_controls("sharpen")
+        self.status_label_features.config(text="Adjust sharpen strength", fg="orange")
+
+    def update_sharpen_preview(self, value):
+        if self.temp_image is None:
+            return
+        strength = int(value)
+        if self.selected_roi:
+            preview = apply_sharpen_with_roi(self.temp_image.copy(), self.selected_roi, strength)
+        else:
+            preview = apply_sharpen(self.temp_image.copy(), strength)
+        display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+
+    def confirm_sharpen(self):
+        strength = self.sharpen_slider.get()
+        if self.temp_image is None:
+            return
+        if self.selected_roi:
+            self.current_image = apply_sharpen_with_roi(self.temp_image.copy(), self.selected_roi, strength)
+        else:
+            self.current_image = apply_sharpen(self.temp_image.copy(), strength)
+        display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text=f"Sharpen applied ({strength})", fg="green")
+        self.hide_all_feature_controls()
+        self.temp_image = None
+        
+    def cancel_sharpen(self):
+        if self.temp_image is not None:
+            display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.hide_all_feature_controls()
+        self.temp_image = None
+        self.status_label_features.config(text="Sharpen cancelled", fg="red")
+    
+    # --------------------------------------
+    # Grayscale Feature
+    # --------------------------------------
+    def apply_grayscale_feature(self):
+        if self.current_image is None:
+            self.status_label_features.config(text="No image loaded", fg="red")
+            return
+        
+        self.temp_image = self.current_image.copy()
+        
+        # Apply immediate preview since there are no parameters
+        preview = apply_grayscale(self.temp_image.copy())
+        display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+        
+        self.show_feature_controls("grayscale")
+        self.status_label_features.config(text="Previewing Grayscale", fg="blue")
+
+    def confirm_grayscale(self):
+        if self.temp_image is None:
+            return
+        
+        # Apply the change permanently
+        self.current_image = apply_grayscale(self.temp_image.copy())
+        display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text="Grayscale applied", fg="green")
+        
+        self.hide_all_feature_controls()
+        self.temp_image = None
+
+    def cancel_grayscale(self):
+        if self.temp_image is not None:
+            # Revert to before preview
+            display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        
+        self.hide_all_feature_controls()
+        self.temp_image = None
+        self.status_label_features.config(text="Grayscale cancelled", fg="red")
+        
+    # --------------------------------------
+    # Reset Feature
+    # --------------------------------------
+    def reset_to_original(self):
+        """Revert the current image to the original state."""
+        if hasattr(self, 'original_rgb_copy') and self.original_rgb_copy is not None:
+            # Restore the image from the clean copy
+            self.current_image = self.original_rgb_copy.copy()
+            self.temp_image = None # Clear any temp previews
+            
+            # Reset all sliders to their default values
+            self.blur_slider.set(5)
+            self.brightness_slider.set(0)
+            self.contrast_slider.set(0)
+            self.sharpen_slider.set(0)
+            
+            # Hide any active tool controls
+            self.hide_all_feature_controls()
+            
+            # Update the display
+            display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+            self.status_label_features.config(text="Image reset to default", fg="orange")
+        else:
+            self.status_label_features.config(text="Nothing to reset", fg="red")
+
+    # --------------------------------------
+    # Save Image Feature
+    # --------------------------------------
+    def handle_save_image(self):
+        """Open file dialog and save the current image."""
+        if self.current_image is None:
+            self.status_label_features.config(text="No image to save!", fg="red")
+            return
+
+        # Open Save As dialog
+        file_path = tk.filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[
+                ("PNG file", "*.png"),
+                ("JPEG file", "*.jpg"),
+                ("All Files", "*.*")
+            ],
+            title="Save Image As"
+        )
+
+        if file_path:
+            # Call the save function we added to image_handler
+            success = save_image(self.current_image, file_path)
+            
+            if success:
+                filename = os.path.basename(file_path)
+                self.status_label_features.config(text=f"Saved: {filename}", fg="green")
+            else:
+                self.status_label_features.config(text="Error saving file", fg="red")
