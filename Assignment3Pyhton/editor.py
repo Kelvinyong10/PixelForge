@@ -7,6 +7,7 @@ from brightness_adjust import adjust_brightness  # Import brightness function
 from contrast_adjust import adjust_contrast  # Import contrast function
 from sharpen import apply_sharpen, apply_sharpen_with_roi  # Import sharpen functions
 from grayscale import apply_grayscale  # Import grayscale function
+from noise_reduction import apply_median_blur, apply_median_blur_with_roi #Import noise reduction functions
 
 import numpy as np
 
@@ -15,7 +16,7 @@ class PixelForgeEditor:
         self.root = root
         self.root.title("PixelForge - Image Editor")
         self.root.geometry("800x600")
-        self.root.configure(bg="#808080")  # Gray background
+        self.root.configure(bg="#1F1F1F")  # Gray background
 
         # Store the original image (managed in image_handler)
         self.original_bgr = None
@@ -38,9 +39,9 @@ class PixelForgeEditor:
         self.contrast_value = 0  # Default contrast adjustment
 
         # Create frames for interfaces
-        self.welcome_frame = tk.Frame(root, bg="#808080")
-        self.select_frame = tk.Frame(root, bg="#808080")
-        self.features_frame = tk.Frame(root, bg="#808080")
+        self.welcome_frame = tk.Frame(root, bg="#1F1F1F")
+        self.select_frame = tk.Frame(root, bg="#1F1F1F")
+        self.features_frame = tk.Frame(root, bg="#1F1F1F")
 
         # Initialize interfaces
         self.create_welcome_interface()
@@ -63,12 +64,12 @@ class PixelForgeEditor:
             self.welcome_frame,
             text="Welcome to PixelForge",
             font=("Arial", 24, "bold"),
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white"
         )
         title_label.pack(pady=(100, 20))
 
-        button_frame = tk.Frame(self.welcome_frame, bg="#808080")
+        button_frame = tk.Frame(self.welcome_frame, bg="#1F1F1F")
         button_frame.pack()
 
         start_btn = tk.Button(
@@ -100,14 +101,14 @@ class PixelForgeEditor:
     # -----------------------------
     def create_select_image_interface(self):
         """Create the select image screen."""
-        left_frame = tk.Frame(self.select_frame, bg="#808080")
+        left_frame = tk.Frame(self.select_frame, bg="#1F1F1F")
         left_frame.pack(side="left", fill="y", padx=20, pady=20)
 
         title_label = tk.Label(
             left_frame,
             text="Select Image",
             font=("Arial", 18, "bold"),
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white"
         )
         title_label.pack(anchor="w", pady=(0, 10))
@@ -148,7 +149,7 @@ class PixelForgeEditor:
         )
         back_btn.pack(side="bottom", anchor="sw", pady=(20, 0))
 
-        right_frame = tk.Frame(self.select_frame, bg="#808080")
+        right_frame = tk.Frame(self.select_frame, bg="#1F1F1F")
         right_frame.pack(side="right", fill="both", expand=True, padx=20, pady=20)
 
         self.canvas_select = tk.Canvas(
@@ -164,7 +165,7 @@ class PixelForgeEditor:
         self.status_label_select = tk.Label(
             right_frame,
             text="No Image Loaded",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 12)
         )
@@ -175,14 +176,14 @@ class PixelForgeEditor:
     # -----------------------------
     def create_features_interface(self):
         """Create the features interface."""
-        left_frame = tk.Frame(self.features_frame, bg="#808080")
+        left_frame = tk.Frame(self.features_frame, bg="#1F1F1F")
         left_frame.pack(side="left", fill="y", padx=20, pady=20)
 
         title_label = tk.Label(
             left_frame,
             text="Features",
             font=("Arial", 18, "bold"),
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white"
         )
         title_label.pack(anchor="w", pady=(0, 10))
@@ -247,6 +248,17 @@ class PixelForgeEditor:
 
         tk.Button(
             left_frame,
+            text="Noise Reduction",
+            command=self.apply_noise_reduction_feature,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=20,
+            height=2
+        ).pack(anchor="w", pady=(0, 10))
+
+        tk.Button(
+            left_frame,
             text="Apply Grayscale",
             command=self.apply_grayscale_feature,
             bg="#404040",
@@ -257,7 +269,7 @@ class PixelForgeEditor:
         ).pack(anchor="w", pady=(0, 10))
 
         # Bottom Button 
-        bottom_btn_frame = tk.Frame(left_frame, bg="#808080")
+        bottom_btn_frame = tk.Frame(left_frame, bg="#1F1F1F")
         bottom_btn_frame.pack(side="bottom", anchor="w", pady=(20, 0), fill="x")
 
         # 1. Back Button
@@ -273,34 +285,8 @@ class PixelForgeEditor:
         )
         back_btn.pack(side="left", padx=(0, 10))
 
-        # 2. Reset Button 
-        reset_btn = tk.Button(
-            bottom_btn_frame,
-            text="Reset",
-            command=self.reset_to_original, 
-            bg="#dc3545", 
-            fg="white",
-            font=("Arial", 12, "bold"),
-            width=15,
-            height=2
-        )
-        reset_btn.pack(side="left", padx=(0, 10))
-
-        # 3. Save Button
-        save_btn = tk.Button(
-            bottom_btn_frame,
-            text="Save",
-            command=self.handle_save_image,
-            bg="#28a745", # Green color
-            fg="white",
-            font=("Arial", 12, "bold"),
-            width=15,
-            height=2
-        )
-        save_btn.pack(side="left")
-
         # Right frame for canvas + sliders
-        right_frame = tk.Frame(self.features_frame, bg="#808080")
+        right_frame = tk.Frame(self.features_frame, bg="#1F1F1F")
         right_frame.pack(side="right", fill="both", expand=True, padx=20, pady=20)
 
         self.canvas_features = tk.Canvas(
@@ -313,20 +299,49 @@ class PixelForgeEditor:
         )
         self.canvas_features.pack(pady=(0, 10))
 
+        action_btn_frame = tk.Frame(right_frame, bg="#1F1F1F")
+        action_btn_frame.pack(side="bottom", fill="x", pady=(20, 0))
+
+        # 1. Save Button
+        save_btn = tk.Button(
+            action_btn_frame,
+            text="Save",
+            command=self.handle_save_image,
+            bg="#28a745",
+            fg="white",
+            font=("Arial", 12, "bold"),
+            width=15,
+            height=2
+        )
+        save_btn.pack(side="right", padx=(10, 0))
+
+        # 2. Reset Button
+        reset_btn = tk.Button(
+            action_btn_frame,
+            text="Reset",
+            command=self.reset_to_original, 
+            bg="#dc3545",
+            fg="white",
+            font=("Arial", 12, "bold"),
+            width=15,
+            height=2
+        )
+        reset_btn.pack(side="right")
+
         # -----------------------------
         # Control Frames (Blur, Brightness, Contrast, Sharpen)
         # -----------------------------
         
         # Blur Controls 
-        self.blur_controls_frame = tk.Frame(right_frame, bg="#808080")
+        self.blur_controls_frame = tk.Frame(right_frame, bg="#1F1F1F")
         
-        blur_top_row = tk.Frame(self.blur_controls_frame, bg="#808080")
+        blur_top_row = tk.Frame(self.blur_controls_frame, bg="#1F1F1F")
         blur_top_row.pack(side="top", pady=(0, 15))
 
         self.blur_slider_label = tk.Label(
             blur_top_row,
             text="Blur Intensity:",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 15)
         )
@@ -339,7 +354,7 @@ class PixelForgeEditor:
             resolution=2,
             orient="horizontal",
             length=150,
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             highlightbackground="#404040",
             command=self.update_blur_preview
@@ -347,15 +362,15 @@ class PixelForgeEditor:
         self.blur_slider.set(5)
         self.blur_slider.pack(side="left", padx=(0, 10))
 
-        blur_bottom_row = tk.Frame(self.blur_controls_frame, bg="#808080")
+        blur_bottom_row = tk.Frame(self.blur_controls_frame, bg="#1F1F1F")
         blur_bottom_row.pack(side="top")
 
         self.apply_blur_btn = tk.Button(
             blur_bottom_row,
-            text="Apply Blur",
+            text="Apply",
             command=self.confirm_blur,
-            bg="#404040",
-            fg="white",
+            bg="#FFA500",
+            fg="black",
             font=("Arial", 12),
             width=15,
             height=2
@@ -375,15 +390,15 @@ class PixelForgeEditor:
         self.cancel_blur_btn.pack(side="left")
 
         # Brightness Controls
-        self.brightness_controls_frame = tk.Frame(right_frame, bg="#808080")
+        self.brightness_controls_frame = tk.Frame(right_frame, bg="#1F1F1F")
         
-        bright_top_row = tk.Frame(self.brightness_controls_frame, bg="#808080")
+        bright_top_row = tk.Frame(self.brightness_controls_frame, bg="#1F1F1F")
         bright_top_row.pack(side="top", pady=(0, 15))
 
         self.brightness_slider_label = tk.Label(
             bright_top_row,
             text="Brightness:",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 15)
         )
@@ -396,7 +411,7 @@ class PixelForgeEditor:
             resolution=10,
             orient="horizontal",
             length=150,
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             highlightbackground="#404040",
             command=self.update_brightness_preview
@@ -404,15 +419,15 @@ class PixelForgeEditor:
         self.brightness_slider.set(0)
         self.brightness_slider.pack(side="left", padx=(0, 10))
 
-        bright_bottom_row = tk.Frame(self.brightness_controls_frame, bg="#808080")
+        bright_bottom_row = tk.Frame(self.brightness_controls_frame, bg="#1F1F1F")
         bright_bottom_row.pack(side="top")
 
         self.apply_brightness_btn = tk.Button(
             bright_bottom_row,
-            text="Apply Brightness",
+            text="Apply",
             command=self.confirm_brightness,
-            bg="#404040",
-            fg="white",
+            bg="#FFA500",
+            fg="black",
             font=("Arial", 12),
             width=15,
             height=2
@@ -432,15 +447,15 @@ class PixelForgeEditor:
         self.cancel_brightness_btn.pack(side="left")
 
         # Contrast Controls 
-        self.contrast_controls_frame = tk.Frame(right_frame, bg="#808080")
+        self.contrast_controls_frame = tk.Frame(right_frame, bg="#1F1F1F")
         
-        contrast_top_row = tk.Frame(self.contrast_controls_frame, bg="#808080")
+        contrast_top_row = tk.Frame(self.contrast_controls_frame, bg="#1F1F1F")
         contrast_top_row.pack(side="top", pady=(0, 15))
 
         self.contrast_slider_label = tk.Label(
             contrast_top_row,
             text="Contrast:",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 15)
         )
@@ -453,7 +468,7 @@ class PixelForgeEditor:
             resolution=10,
             orient="horizontal",
             length=150,
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             highlightbackground="#404040",
             command=self.update_contrast_preview
@@ -461,15 +476,15 @@ class PixelForgeEditor:
         self.contrast_slider.set(0)
         self.contrast_slider.pack(side="left", padx=(0, 10))
 
-        contrast_bottom_row = tk.Frame(self.contrast_controls_frame, bg="#808080")
+        contrast_bottom_row = tk.Frame(self.contrast_controls_frame, bg="#1F1F1F")
         contrast_bottom_row.pack(side="top")
 
         self.apply_contrast_btn = tk.Button(
             contrast_bottom_row,
-            text="Apply Contrast",
+            text="Apply",
             command=self.confirm_contrast,
-            bg="#404040",
-            fg="white",
+            bg="#FFA500",
+            fg="black",
             font=("Arial", 12),
             width=15,
             height=2
@@ -489,15 +504,15 @@ class PixelForgeEditor:
         self.cancel_contrast_btn.pack(side="left")
 
         # Sharpen controls 
-        self.sharpen_controls_frame = tk.Frame(right_frame, bg="#808080")
+        self.sharpen_controls_frame = tk.Frame(right_frame, bg="#1F1F1F")
 
-        sharpen_top_row = tk.Frame(self.sharpen_controls_frame, bg="#808080")
+        sharpen_top_row = tk.Frame(self.sharpen_controls_frame, bg="#1F1F1F")
         sharpen_top_row.pack(side="top", pady=(0, 15))
 
         self.sharpen_slider_label = tk.Label(
             sharpen_top_row,
             text="Sharpen Strength:",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 15)
         )
@@ -509,7 +524,7 @@ class PixelForgeEditor:
             to=5,
             orient="horizontal",
             length=150,
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             highlightbackground="#404040",
             command=self.update_sharpen_preview
@@ -517,15 +532,15 @@ class PixelForgeEditor:
         self.sharpen_slider.set(0)
         self.sharpen_slider.pack(side="left", padx=(0, 10))
 
-        sharpen_bottom_row = tk.Frame(self.sharpen_controls_frame, bg="#808080")
+        sharpen_bottom_row = tk.Frame(self.sharpen_controls_frame, bg="#1F1F1F")
         sharpen_bottom_row.pack(side="top")
 
         self.apply_sharpen_btn = tk.Button(
             sharpen_bottom_row,
             text="Apply ",
             command=self.confirm_sharpen,
-            bg="#404040",
-            fg="white",
+            bg="#FFA500",
+            fg="black",
             font=("Arial", 12),
             width=15,
             height=2
@@ -544,29 +559,85 @@ class PixelForgeEditor:
         )
         self.cancel_sharpen_btn.pack(side="left")
 
-        # Grayscale Controls 
-        self.grayscale_controls_frame = tk.Frame(right_frame, bg="#808080")
+        # Noise Reduction Controls 
+        self.noise_controls_frame = tk.Frame(right_frame, bg="#1F1F1F")
 
-        gray_top_row = tk.Frame(self.grayscale_controls_frame, bg="#808080")
+        noise_top_row = tk.Frame(self.noise_controls_frame, bg="#1F1F1F")
+        noise_top_row.pack(side="top", pady=(0, 15))
+
+        tk.Label(
+            noise_top_row,
+            text="Denoise Strength:",
+            bg="#1F1F1F",
+            fg="white",
+            font=("Arial", 15)
+        ).pack(side="left", padx=(0, 15))
+
+        self.noise_slider = tk.Scale(
+            noise_top_row,
+            from_=1,
+            to=15,
+            resolution=2,
+            orient="horizontal",
+            length=150,
+            bg="#1F1F1F",
+            fg="white",
+            highlightbackground="#404040",
+            command=self.update_noise_reduction_preview
+        )
+        self.noise_slider.set(3)
+        self.noise_slider.pack(side="left", padx=(0, 10))
+
+        noise_bottom_row = tk.Frame(self.noise_controls_frame, bg="#1F1F1F")
+        noise_bottom_row.pack(side="top")
+
+        self.apply_noise_btn = tk.Button(
+            noise_bottom_row,
+            text="Apply",
+            command=self.confirm_noise_reduction,
+            bg="#FFA500",
+            fg="black",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.apply_noise_btn.pack(side="left", padx=(0, 5))
+
+        self.cancel_noise_btn = tk.Button(
+            noise_bottom_row,
+            text="Cancel",
+            command=self.cancel_noise_reduction,
+            bg="#404040",
+            fg="white",
+            font=("Arial", 12),
+            width=15,
+            height=2
+        )
+        self.cancel_noise_btn.pack(side="left")
+
+        # Grayscale Controls 
+        self.grayscale_controls_frame = tk.Frame(right_frame, bg="#1F1F1F")
+
+        gray_top_row = tk.Frame(self.grayscale_controls_frame, bg="#1F1F1F")
         gray_top_row.pack(side="top", pady=(0, 15))
 
         tk.Label(
             gray_top_row,
             text="Convert to Grayscale",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 15)
         ).pack(side="left", padx=(0, 15))
 
-        gray_bottom_row = tk.Frame(self.grayscale_controls_frame, bg="#808080")
+        gray_bottom_row = tk.Frame(self.grayscale_controls_frame, bg="#1F1F1F")
         gray_bottom_row.pack(side="top")
 
         self.apply_gray_btn = tk.Button(
             gray_bottom_row,
             text="Apply",
             command=self.confirm_grayscale,
-            bg="#404040",
-            fg="white",
+            bg="#FFA500",
+            fg="black",
             font=("Arial", 12),
             width=15,
             height=2
@@ -589,7 +660,7 @@ class PixelForgeEditor:
         self.status_label_features = tk.Label(
             right_frame,
             text="No Image Loaded",
-            bg="#808080",
+            bg="#1F1F1F",
             fg="white",
             font=("Arial", 12)
         )
@@ -611,6 +682,8 @@ class PixelForgeEditor:
             self.sharpen_controls_frame.pack(pady=(0, 10))
         elif feature == "grayscale": 
             self.grayscale_controls_frame.pack(pady=(0, 10))
+        elif feature == "noise":
+            self.noise_controls_frame.pack(pady=(0, 10))
 
     def hide_all_feature_controls(self):
         """Hide all feature control frames."""
@@ -619,6 +692,7 @@ class PixelForgeEditor:
         self.contrast_controls_frame.pack_forget()
         self.sharpen_controls_frame.pack_forget()
         self.grayscale_controls_frame.pack_forget()
+        self.noise_controls_frame.pack_forget()
 
     # --------------------------------------
     # Screen navigation
@@ -909,6 +983,49 @@ class PixelForgeEditor:
         self.hide_all_feature_controls()
         self.temp_image = None
         self.status_label_features.config(text="Sharpen cancelled", fg="red")
+
+    # --------------------------------------
+    # Noise Reduction Feature
+    # --------------------------------------
+
+    def apply_noise_reduction_feature(self):
+        if self.current_image is None:
+            self.status_label_features.config(text="No image loaded", fg="red")
+            return
+        self.temp_image = self.current_image.copy()
+        self.show_feature_controls("noise")
+        self.status_label_features.config(text="Adjust denoise strength", fg="orange")
+
+    def update_noise_reduction_preview(self, value):
+        if self.temp_image is None: return
+        kernel = int(value)
+        if kernel % 2 == 0: kernel += 1
+        
+        if self.selected_roi:
+            preview = apply_median_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel)
+        else:
+            preview = apply_median_blur(self.temp_image.copy(), kernel)
+        
+        display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
+
+    def confirm_noise_reduction(self):
+        if self.temp_image is None: return
+        kernel = self.noise_slider.get()
+        if self.selected_roi:
+            self.current_image = apply_median_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel)
+        else:
+            self.current_image = apply_median_blur(self.temp_image.copy(), kernel)
+        
+        display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.status_label_features.config(text="Noise reduction applied", fg="green")
+        self.hide_all_feature_controls()
+        self.temp_image = None
+
+    def cancel_noise_reduction(self):
+        if self.temp_image is not None:
+            display_image(self, self.temp_image, canvas=self.canvas_features, status_label=self.status_label_features)
+        self.hide_all_feature_controls()
+        self.reset_roi_selection()
     
     # --------------------------------------
     # Grayscale Feature
