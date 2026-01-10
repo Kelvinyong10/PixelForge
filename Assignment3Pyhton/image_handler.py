@@ -1,6 +1,7 @@
 # image_handler.py
 import tkinter as tk
 from tkinter import filedialog
+from PIL import Image, ImageTk
 import cv2
 import numpy as np
 import os
@@ -30,43 +31,23 @@ def open_image(editor, status_label):
     return None
 
 def display_image(editor, rgb_image, canvas=None, status_label=None):
-    """Display RGB image on the specified canvas, resized to fit while maintaining aspect ratio."""
     if canvas is None:
-        canvas = editor.canvas_select  # Default to select canvas
-    if status_label is None:
-        status_label = editor.status_label_select  # Default to select status
-    
+        canvas = editor.canvas_select
+
+    # Convert OpenCV RGB array to PIL Image
+    pil_image = Image.fromarray(rgb_image)
+
+    # Resize to fit canvas
     canvas_width = 600
     canvas_height = 400
-    
-    height, width = rgb_image.shape[:2]
-    
-    # Calculate scaling factor to fit the image into the canvas
-    scale_x = canvas_width / width
-    scale_y = canvas_height / height
-    scale = min(scale_x, scale_y)  # Use the smaller scale to fit without cropping
-    
-    # Resize the image
-    new_width = int(width * scale)
-    new_height = int(height * scale)
-    resized_image = cv2.resize(rgb_image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-    
-    # Create PhotoImage from resized image
-    editor.photo = tk.PhotoImage(width=new_width, height=new_height)
-    
-    # Add pixel data row by row
-    for y in range(new_height):
-        row = []
-        for x in range(new_width):
-            r, g, b = resized_image[y, x]
-            row.append(f"#{r:02x}{g:02x}{b:02x}")
-        editor.photo.put("{" + " ".join(row) + "}", to=(0, y))
-    
-    # Clear and display on canvas (centered)
+    pil_image.thumbnail((canvas_width, canvas_height), Image.Resampling.LANCZOS)
+
+    # Convert to ImageTk
+    editor.photo = ImageTk.PhotoImage(pil_image)
+
+    # Clear and display
     canvas.delete("all")
-    x_offset = (canvas_width - new_width) // 2
-    y_offset = (canvas_height - new_height) // 2
-    canvas.create_image(x_offset + new_width // 2, y_offset + new_height // 2, anchor="center", image=editor.photo)
+    canvas.create_image(canvas_width//2, canvas_height//2, image=editor.photo, anchor="center")
 
 def save_image(rgb_image, file_path):
     """Save the RGB image to the specified file path."""

@@ -8,7 +8,7 @@ from contrast_adjust import adjust_contrast, adjust_contrast_with_roi # Import c
 from sharpen import apply_sharpen, apply_sharpen_with_roi  # Import sharpen functions
 from noise_reduction import apply_median_blur, apply_median_blur_with_roi #Import noise reduction functions
 from grayscale import apply_grayscale, apply_grayscale_with_roi #Import greyscale functions
-
+import PIL.ImageTk as ImageTk
 import numpy as np
 
 class PixelForgeEditor:
@@ -380,9 +380,9 @@ class PixelForgeEditor:
 
         self.blur_slider = tk.Scale(
             blur_top_row,
-            from_=1,
-            to=15,
-            resolution=2,
+            from_=0,
+            to=100,
+            resolution=1,
             orient="horizontal",
             length=150,
             bg="#1F1F1F",
@@ -390,7 +390,7 @@ class PixelForgeEditor:
             highlightbackground="#404040",
             command=self.update_blur_preview
         )
-        self.blur_slider.set(5)
+        self.blur_slider.set(33)
         self.blur_slider.pack(side="left", padx=(0, 10))
 
         blur_bottom_row = tk.Frame(self.blur_controls_frame, bg="#1F1F1F")
@@ -552,7 +552,7 @@ class PixelForgeEditor:
         self.sharpen_slider = tk.Scale(
             sharpen_top_row,
             from_=0,
-            to=5,
+            to=100,
             orient="horizontal",
             length=150,
             bg="#1F1F1F",
@@ -606,8 +606,8 @@ class PixelForgeEditor:
 
         self.noise_slider = tk.Scale(
             noise_top_row,
-            from_=1,
-            to=15,
+            from_=0,
+            to=100,
             resolution=2,
             orient="horizontal",
             length=150,
@@ -616,7 +616,7 @@ class PixelForgeEditor:
             highlightbackground="#404040",
             command=self.update_noise_reduction_preview
         )
-        self.noise_slider.set(3)
+        self.noise_slider.set(20)
         self.noise_slider.pack(side="left", padx=(0, 10))
 
         noise_bottom_row = tk.Frame(self.noise_controls_frame, bg="#1F1F1F")
@@ -905,17 +905,16 @@ class PixelForgeEditor:
     def update_blur_preview(self, value):
         if self.temp_image is None:
             return
-        self.blur_kernel = int(value)
-        if self.blur_kernel % 2 == 0:
-            self.blur_kernel += 1
+
+        intensity = int(value)
 
         if self.selected_roi:
-            preview = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel_size=self.blur_kernel)
+            preview = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, intensity=intensity)
         else:
-            preview = apply_blur(self.temp_image.copy(), kernel_size=self.blur_kernel)
+            preview = apply_blur(self.temp_image.copy(), intensity=intensity)
 
         display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
-        self.status_label_features.config(text=f"Preview: Blur ({self.blur_kernel})", fg="blue")
+        self.status_label_features.config(text=f"Preview: Blur (Intensity {intensity})", fg="blue")
 
     def confirm_blur(self):
         if self.temp_image is None:
@@ -1047,7 +1046,7 @@ class PixelForgeEditor:
     def update_sharpen_preview(self, value):
         if self.temp_image is None:
             return
-        strength = int(value)
+        strength = int(round(float(value)))
         if self.selected_roi:
             preview = apply_sharpen_with_roi(self.temp_image.copy(), self.selected_roi, strength)
         else:
@@ -1089,8 +1088,11 @@ class PixelForgeEditor:
         self.status_label_features.config(text="Adjust denoise strength", fg="orange")
 
     def update_noise_reduction_preview(self, value):
-        if self.temp_image is None: return
-        kernel = int(value)
+        if self.temp_image is None:
+            return
+        
+        kernel = kernel = max(1, int(int(value) * 15 / 100))
+
         if kernel % 2 == 0: kernel += 1
         
         if self.selected_roi:

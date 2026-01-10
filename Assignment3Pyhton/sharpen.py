@@ -1,13 +1,14 @@
 import cv2
 import numpy as np
 
-def apply_sharpen(image, strength):
-    kernel = np.array([
-        [0, -1, 0],
-        [-1, 5 + strength, -1],
-        [0, -1, 0]
-    ])
-    return cv2.filter2D(image, -1, kernel)
+def apply_sharpen(image, intensity=1.0):
+    
+    w = (intensity / 100) * 2
+    center = 1 + 8 * w
+    kernel = np.array([[-w, -w, -w],
+                       [-w, center, -w],
+                       [-w, -w, -w]], dtype=np.float32)
+    return np.clip(cv2.filter2D(image, -1, kernel), 0, 255).astype(np.uint8)
 
 
 def apply_sharpen_with_roi(image, roi, strength):
