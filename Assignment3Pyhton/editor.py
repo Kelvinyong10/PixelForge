@@ -799,7 +799,7 @@ class PixelForgeEditor:
             return
 
         self.selection_mode = True
-        self.status_label_features.config(text="Drag Left-Click to Copy | Right-Click to Paste", fg="orange")
+        self.status_label_features.config(text="Drag Left-Click to Select ROI/Copy | Right-Click to Paste", fg="orange")
         self.hide_all_feature_controls()
 
         self.canvas_features.bind("<ButtonPress-1>", self.start_roi_selection)
