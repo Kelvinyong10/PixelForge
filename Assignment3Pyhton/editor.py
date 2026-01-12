@@ -906,23 +906,23 @@ class PixelForgeEditor:
         if self.temp_image is None:
             return
 
-        intensity = int(value)
+        self.blur_kernel = int(value)
 
         if self.selected_roi:
-            preview = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, intensity=intensity)
+            preview = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, intensity=self.blur_kernel)
         else:
-            preview = apply_blur(self.temp_image.copy(), intensity=intensity)
+            preview = apply_blur(self.temp_image.copy(), intensity=self.blur_kernel)
 
         display_image(self, preview, canvas=self.canvas_features, status_label=self.status_label_features)
-        self.status_label_features.config(text=f"Preview: Blur (Intensity {intensity})", fg="blue")
+        self.status_label_features.config(text=f"Preview: Blur (Intensity {self.blur_kernel})", fg="blue")
 
     def confirm_blur(self):
         if self.temp_image is None:
             return
         if self.selected_roi:
-            self.current_image = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel_size=self.blur_kernel)
+            self.current_image = apply_blur_with_roi(self.temp_image.copy(), self.selected_roi, intensity=self.blur_kernel)
         else:
-            self.current_image = apply_blur(self.temp_image.copy(), kernel_size=self.blur_kernel)
+            self.current_image = apply_blur(self.temp_image.copy(), intensity=self.blur_kernel)
         display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
         self.status_label_features.config(text=f"Blur applied ({self.blur_kernel})", fg="green")
         self.hide_all_feature_controls()
@@ -1091,8 +1091,7 @@ class PixelForgeEditor:
         if self.temp_image is None:
             return
         
-        kernel = kernel = max(1, int(int(value) * 15 / 100))
-
+        kernel = max(1, int(int(value) * 15 / 100))
         if kernel % 2 == 0: kernel += 1
         
         if self.selected_roi:
@@ -1104,7 +1103,10 @@ class PixelForgeEditor:
 
     def confirm_noise_reduction(self):
         if self.temp_image is None: return
-        kernel = self.noise_slider.get()
+        val = self.noise_slider.get()
+        kernel = max(1, int(val * 15 / 100))
+        if kernel % 2 == 0: kernel += 1
+
         if self.selected_roi:
             self.current_image = apply_median_blur_with_roi(self.temp_image.copy(), self.selected_roi, kernel)
         else:
