@@ -831,7 +831,7 @@ class PixelForgeEditor:
         if self.selected_roi:
             ix1, iy1, ix2, iy2 = self.selected_roi
             self.copied_fragment = self.current_image[iy1:iy2, ix1:ix2].copy()
-            self.status_label_features.config(text="Fragment Copied! Right-click to paste it.", fg="green")
+            self.status_label_features.config(text="ROI Copied! Right-click to paste it.", fg="green")
 
         self.roi_start = None
 
@@ -877,7 +877,7 @@ class PixelForgeEditor:
             self.current_image[start_y:end_y, start_x:end_x] = self.copied_fragment[0:visible_h, 0:visible_w]
             
             display_image(self, self.current_image, canvas=self.canvas_features, status_label=self.status_label_features)
-            self.status_label_features.config(text="Fragment Pasted!", fg="green")
+            self.status_label_features.config(text="ROI Pasted!", fg="green")
 
     def stop_roi_mode(self):
         """Call this to exit selection mode and clean up binds."""
